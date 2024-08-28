@@ -55,21 +55,58 @@ function enableAllFields(executionContext) {
     });
 }
 
-
-function testFunction(executionContext) {
+async function autofillCurrencyFromPriceList(executionContext) {
     const Form = executionContext.getFormContext();
+    const priceList = Form.getAttribute("cr62c_fk_price_list").getValue();
 
-    const lookupValue = Form.getAttribute("cr62c_product").getValue();
+    if (priceList) {
+        const priceListId = priceList[0].id;
 
-    if (lookupValue != null && lookupValue.length > 0) {
-        const name = lookupValue[0].name;
-        const id = lookupValue[0].id;
-        const entityType = lookupValue[0].entityType;
+        try {
+            const priceListRecord = await Xrm.WebApi.retrieveRecord("cr62c_price_list", priceListId, "?$select=transactioncurrencyid");
 
-        alert("Name: " + name);
-        alert("ID: " + id);
-        alert("Entity Type: " + entityType);
-    } else {
-        alert("No product selected.");
+            if (priceListRecord.transactioncurrencyid) {
+                const currencyId = priceListRecord.transactioncurrencyid.transactioncurrencyid;
+                const currencyName = priceListRecord.transactioncurrencyid.name;
+
+                Form.getAttribute("transactioncurrencyid").setValue([{
+                    id: currencyId,
+                    name: currencyName,
+                    entityType: "transactioncurrency"
+                }]);
+
+                Form.getControl("transactioncurrencyid").setDisabled(true);
+            }
+        } catch (error) {
+            console.error("Error retrieving currency from Price List:", error);
+        }
+    }
+}
+
+async function autofillPricePerUnit(executionContext) {
+    const Form = executionContext.getFormContext();
+    const priceList = Form.getAttribute("cr62c_fk_price_list").getValue();
+    const product = Form.getAttribute("cr62c_fk_product").getValue();
+
+    if (priceList && product) {
+        const priceListId = priceList[0].id;
+        const productId = product[0].id;
+
+        try {
+            const query = `?$filter=_productid_value eq ${productId} and _pricelistid_value eq ${priceListId} &$select=priceperunit`;
+            const priceListItemRecords = await Xrm.WebApi.retrieveMultipleRecords("pricelistitem", query);
+
+            if (priceListItemRecords.entities.length > 0) {
+                const pricePerUnit = priceListItemRecords.entities[0].priceperunit;
+                Form.getAttribute("cr62c_mon_price_per_unit").setValue(pricePerUnit);
+            } else {
+                const productRecord = await Xrm.WebApi.retrieveRecord("product", productId, "?$select=defaultpriceperunit");
+                Form.getAttribute("cr62c_mon_price_per_unit").setValue(productRecord.defaultpriceperunit);
+            }
+
+            Form.getControl("cr62c_mon_price_per_unit").setDisabled(true);
+        } catch (error) {
+            console.error("Error retrieving Price Per Unit:", error);
+        }
     }
 }
