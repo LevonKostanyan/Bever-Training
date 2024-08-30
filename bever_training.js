@@ -67,18 +67,18 @@ async function setCurrencyFromPriceList(executionContext) {
     const priceListId = priceListLookup[0].id;
 
     try {
-        const priceListRecord = await Xrm.WebApi.retrieveMultipleRecords("pricelist",
-            `?$select=TransactionCurrencyId&$filter=cr62c_fk_price_list eq ${priceListId}&$expand=transactioncurrencyid($select=transactioncurrencyid)`);
+        const priceListRecord = await Xrm.WebApi.retrieveMultipleRecords("cr62c_price_list",
+            `?$select=TransactionCurrencyId&$filter=cr62c_fk_price_list eq ${priceListId}&$expand=TransactionCurrencyId($select=TransactionCurrencyId)`);
 
         if (priceListRecord.entities.length > 0) {
             const currencyId = priceListRecord.entities[0].transactioncurrencyid.transactioncurrencyid;
 
-            Form.getAttribute("TransactionCurrencyId").setValue([{ id: currencyId, entityType: "TransactionCurrency" }]);
+            Form.getAttribute("TransactionCurrencyId").setValue([{id: currencyId, entityType: "transactioncurrency"}]);
             Form.getControl("TransactionCurrencyId").setDisabled(true);
         }
     } catch (error) {
         console.error("Error retrieving currency from Price List: ", error);
-        Xrm.Navigation.openAlertDialog({ text: "An error occurred while retrieving currency from Price List." });
+        Xrm.Navigation.openAlertDialog({text: "An error occurred while retrieving currency from Price List."});
     }
 }
 
@@ -124,10 +124,10 @@ function autofillAndHideFields(executionContext) {
     Form.getControl("OwnerId").setVisible(false);
 }
 
-    async function setPricePerUnit(executionContext) {
+async function setPricePerUnit(executionContext) {
     const Form = executionContext.getFormContext();
-    const productLookup = Form.getAttribute("cr62c_Product").getValue();
-    const priceListLookup = Form.getAttribute("cr62c_fk_price_list").getValue();
+    const productLookup = Form.getAttribute("cr62c_Product")?.getValue();
+    const priceListLookup = Form.getAttribute("cr62c_fk_price_list")?.getValue();
 
     if (productLookup == null || priceListLookup == null) {
         return;
@@ -137,15 +137,15 @@ function autofillAndHideFields(executionContext) {
     const priceListId = priceListLookup[0].id;
 
     try {
-        const priceListItemRecords = await Xrm.WebApi.retrieveMultipleRecords("pricelistitem",
-            `?$filter=_cr62c_fk_price_list_value eq ${priceListId} and _cr62c_Product_value eq ${productId}`);
+        const priceListItemRecords = await Xrm.WebApi.retrieveMultipleRecords("cr62c_price_list_items",
+            `?$filter=_pricelistid_value eq ${priceListId} and _productid_value eq ${productId}`);
 
         let pricePerUnit = null;
 
         if (priceListItemRecords.entities.length > 0) {
             pricePerUnit = priceListItemRecords.entities[0].priceperunit;
         } else {
-            const productRecord = await Xrm.WebApi.retrieveRecord("product", productId, "?$select=cr62c_mon_price_list");
+            const productRecord = await Xrm.WebApi.retrieveRecord("product", productId, "?$select=defaultpriceperunit");
             pricePerUnit = productRecord.defaultpriceperunit;
         }
 
@@ -156,7 +156,7 @@ function autofillAndHideFields(executionContext) {
 
     } catch (error) {
         console.error("Error retrieving Price Per Unit: ", error);
-        Xrm.Navigation.openAlertDialog({ text: "An error occurred while retrieving Price Per Unit." });
+        Xrm.Navigation.openAlertDialog({text: "An error occurred while retrieving Price Per Unit."});
     }
 }
 
@@ -172,7 +172,7 @@ async function autofillPricePerUnit(executionContext) {
 
         try {
             const query = `?$filter=_cr62c_fk_product_value eq ${productId} and _cr62c_fk_price_list_value eq ${priceListId} &$select=mon_price_per_unit`;
-            const priceListItemRecords = await Xrm.WebApi.retrieveMultipleRecords("pricelistitem", query);
+            const priceListItemRecords = await Xrm.WebApi.retrieveMultipleRecords("cr62c_price_list_items", query);
 
             if (priceListItemRecords.entities.length > 0) {
                 const pricePerUnit = priceListItemRecords.entities[0].priceperunit;
@@ -186,5 +186,48 @@ async function autofillPricePerUnit(executionContext) {
         } catch (error) {
             console.error("Error retrieving Price Per Unit:", error);
         }
+    }
+}
+
+async function calculateChildQuantity(executionContext) {
+    const Form = executionContext.getFormContext();
+
+    const inventoryId = Form.getAttribute("cr62c_fk_inventory").getValue();
+    if (!inventoryId) {
+        console.error("Inventory ID is null, calculation cannot proceed.");
+        return;
+    }
+
+    const fetchXml = `
+    <fetch version="1.0" mapping="logical" distinct="true">
+        <entity name="cr62c_inventory_product">
+            <attribute name="cr62c_name"/>
+            <attribute name="statecode"/>
+            <attribute name="cr62c_inventory_productid"/>
+            <attribute name="cr62c_product"/>
+            <attribute name="cr62c_dec_quantity"/>
+            <attribute name="cr62c_mon_price_per_unit"/>
+            <attribute name="cr62c_mon_total_amount"/>
+            <attribute name="cr62c_fk_inventory"/>
+            <filter type="and">
+                <condition attribute="cr62c_fk_inventory" operator="eq" value="${inventoryId[0].id}" />
+            </filter>
+        </entity>
+    </fetch>`;
+
+    try {
+        const results = await Xrm.WebApi.retrieveMultipleRecords("cr62c_inventory_product", `?fetchXml=${encodeURIComponent(fetchXml)}`);
+
+        let totalQuantity = 0;
+
+        if (results.entities.length > 0) {
+            results.entities.forEach(record => {
+                totalQuantity += record.cr62c_dec_quantity;
+            });
+        }
+
+        Form.getAttribute("total_quantity_field").setValue(totalQuantity);
+    } catch (error) {
+        console.error("Error executing FetchXML query: ", error);
     }
 }
