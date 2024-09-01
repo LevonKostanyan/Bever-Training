@@ -1,10 +1,10 @@
 function setName(executionContext) {
-    const Form = executionContext.getFormContext();
+    let Form = executionContext.getFormContext();
 
-    const productLookupValue = Form.getAttribute("cr62c_product").getValue();
+    let productLookupValue = Form.getAttribute("cr62c_product").getValue();
 
     if (productLookupValue != null && productLookupValue.length > 0) {
-        const productName = productLookupValue[0].name;
+        let productName = productLookupValue[0].name;
 
         Form.getAttribute("cr62c_slot_name").setValue(productName);
     } else {
@@ -15,22 +15,29 @@ function setName(executionContext) {
 function calculateTotalAmount(executionContext) {
     const Form = executionContext.getFormContext();
 
-    const quantity = Form.getAttribute("cr62c_dec_quantity").getValue();
-    const pricePerUnit = Form.getAttribute("cr62c_mon_price_per_unit").getValue();
+    const quantityField = Form.getAttribute("cr62c_dec_quantity");
+    const pricePerUnitField = Form.getAttribute("cr62c_mon_price_per_unit");
 
-    if (quantity != null && pricePerUnit != null) {
-        const totalAmount = quantity * pricePerUnit;
+    if (quantityField != null && pricePerUnitField != null) {
+        const quantity = quantityField.getValue();
+        const pricePerUnit = pricePerUnitField.getValue();
 
-        Form.getAttribute("cr62c_mon_total_amount").setValue(totalAmount);
+        if (quantity != null && pricePerUnit != null) {
+            const totalAmount = quantity * pricePerUnit;
+            Form.getAttribute("cr62c_mon_total_amount").setValue(totalAmount);
+        } else {
+            Form.getAttribute("cr62c_mon_total_amount").setValue(null);
+        }
     } else {
-        Form.getAttribute("cr62c_mon_total_amount").setValue(null);
+        console.error("Quantity or Price Per Unit fields are missing.");
+        Xrm.Navigation.openAlertDialog({ text: "Unable to calculate Total Amount. Please ensure Quantity and Price Per Unit fields exist." });
     }
 }
 
 function toggleFieldsBasedOnFormType(executionContext) {
-    const Form = executionContext.getFormContext();
+    let Form = executionContext.getFormContext();
 
-    const formType = Form.ui.getFormType();
+    let formType = Form.ui.getFormType();
 
     if (formType === 1) {
         enableAllFields(Form);
@@ -56,22 +63,22 @@ function enableAllFields(executionContext) {
 }
 
 async function setCurrencyFromPriceList(executionContext) {
-    const Form = executionContext.getFormContext();
-    const priceListLookup = Form.getAttribute("cr62c_fk_price_list").getValue();
+    let Form = executionContext.getFormContext();
+    let priceListLookup = Form.getAttribute("cr62c_fk_price_list").getValue();
 
     if (priceListLookup == null) {
         Form.getControl("TransactionCurrencyId").setDisabled(true);
         return;
     }
 
-    const priceListId = priceListLookup[0].id;
+    let priceListId = priceListLookup[0].id;
 
     try {
-        const priceListRecord = await Xrm.WebApi.retrieveMultipleRecords("cr62c_price_list",
+        let priceListRecord = await Xrm.WebApi.retrieveMultipleRecords("cr62c_price_list",
             `?$select=TransactionCurrencyId&$filter=cr62c_fk_price_list eq ${priceListId}&$expand=TransactionCurrencyId($select=TransactionCurrencyId)`);
 
         if (priceListRecord.entities.length > 0) {
-            const currencyId = priceListRecord.entities[0].transactioncurrencyid.transactioncurrencyid;
+            let currencyId = priceListRecord.entities[0].transactioncurrencyid.transactioncurrencyid;
 
             Form.getAttribute("TransactionCurrencyId").setValue([{id: currencyId, entityType: "transactioncurrency"}]);
             Form.getControl("TransactionCurrencyId").setDisabled(true);
@@ -84,18 +91,18 @@ async function setCurrencyFromPriceList(executionContext) {
 
 
 async function autofillCurrencyFromPriceList(executionContext) {
-    const Form = executionContext.getFormContext();
-    const priceList = Form.getAttribute("cr62c_fk_price_list").getValue();
+    let Form = executionContext.getFormContext();
+    let priceList = Form.getAttribute("cr62c_fk_price_list").getValue();
 
     if (priceList) {
-        const priceListId = priceList[0].id;
+        let priceListId = priceList[0].id;
 
         try {
-            const priceListRecord = await Xrm.WebApi.retrieveRecord("cr62c_price_list", priceListId, "?$select=TransactionCurrencyId");
+            let priceListRecord = await Xrm.WebApi.retrieveRecord("cr62c_price_list", priceListId, "?$select=TransactionCurrencyId");
 
             if (priceListRecord.transactioncurrencyid) {
-                const currencyId = priceListRecord.transactioncurrencyid.transactioncurrencyid;
-                const currencyName = priceListRecord.transactioncurrencyid.name;
+                let currencyId = priceListRecord.transactioncurrencyid.transactioncurrencyid;
+                let currencyName = priceListRecord.transactioncurrencyid.name;
 
                 Form.getAttribute("TransactionCurrencyId").setValue([{
                     id: currencyId,
@@ -112,11 +119,11 @@ async function autofillCurrencyFromPriceList(executionContext) {
 }
 
 function autofillAndHideFields(executionContext) {
-    const Form = executionContext.getFormContext();
-    const product = Form.getAttribute("cr62c_product").getValue();
+    let Form = executionContext.getFormContext();
+    let product = Form.getAttribute("cr62c_product").getValue();
 
     if (product != null) {
-        const productName = product[0].name;
+        let productName = product[0].name;
         Form.getAttribute("cr62c_slot_name").setValue(productName);
     }
 
@@ -125,19 +132,19 @@ function autofillAndHideFields(executionContext) {
 }
 
 async function setPricePerUnit(executionContext) {
-    const Form = executionContext.getFormContext();
-    const productLookup = Form.getAttribute("cr62c_Product")?.getValue();
-    const priceListLookup = Form.getAttribute("cr62c_fk_price_list")?.getValue();
+    let Form = executionContext.getFormContext();
+    let productLookup = Form.getAttribute("cr62c_Product")?.getValue();
+    let priceListLookup = Form.getAttribute("cr62c_fk_price_list")?.getValue();
 
     if (productLookup == null || priceListLookup == null) {
         return;
     }
 
-    const productId = productLookup[0].id;
-    const priceListId = priceListLookup[0].id;
+    let productId = productLookup[0].id;
+    let priceListId = priceListLookup[0].id;
 
     try {
-        const priceListItemRecords = await Xrm.WebApi.retrieveMultipleRecords("cr62c_price_list_items",
+        let priceListItemRecords = await Xrm.WebApi.retrieveMultipleRecords("cr62c_price_list_items",
             `?$filter=_pricelistid_value eq ${priceListId} and _productid_value eq ${productId}`);
 
         let pricePerUnit = null;
@@ -145,7 +152,7 @@ async function setPricePerUnit(executionContext) {
         if (priceListItemRecords.entities.length > 0) {
             pricePerUnit = priceListItemRecords.entities[0].priceperunit;
         } else {
-            const productRecord = await Xrm.WebApi.retrieveRecord("product", productId, "?$select=defaultpriceperunit");
+            let productRecord = await Xrm.WebApi.retrieveRecord("product", productId, "?$select=defaultpriceperunit");
             pricePerUnit = productRecord.defaultpriceperunit;
         }
 
@@ -162,23 +169,23 @@ async function setPricePerUnit(executionContext) {
 
 
 async function autofillPricePerUnit(executionContext) {
-    const Form = executionContext.getFormContext();
-    const priceList = Form.getAttribute("cr62c_fk_price_list").getValue();
-    const product = Form.getAttribute("cr62c_fk_product").getValue();
+    let Form = executionContext.getFormContext();
+    let priceList = Form.getAttribute("cr62c_fk_price_list").getValue();
+    let product = Form.getAttribute("cr62c_fk_product").getValue();
 
     if (priceList && product) {
-        const priceListId = priceList[0].id;
-        const productId = product[0].id;
+        let priceListId = priceList[0].id;
+        let productId = product[0].id;
 
         try {
-            const query = `?$filter=_cr62c_fk_product_value eq ${productId} and _cr62c_fk_price_list_value eq ${priceListId} &$select=mon_price_per_unit`;
-            const priceListItemRecords = await Xrm.WebApi.retrieveMultipleRecords("cr62c_price_list_items", query);
+            let query = `?$filter=_cr62c_fk_product_value eq ${productId} and _cr62c_fk_price_list_value eq ${priceListId} &$select=mon_price_per_unit`;
+            let priceListItemRecords = await Xrm.WebApi.retrieveMultipleRecords("cr62c_price_list_items", query);
 
             if (priceListItemRecords.entities.length > 0) {
-                const pricePerUnit = priceListItemRecords.entities[0].priceperunit;
+                let pricePerUnit = priceListItemRecords.entities[0].priceperunit;
                 Form.getAttribute("cr62c_mon_price_per_unit").setValue(pricePerUnit);
             } else {
-                const productRecord = await Xrm.WebApi.retrieveRecord("product", productId, "?$select=mon_price_per_unit");
+                let productRecord = await Xrm.WebApi.retrieveRecord("product", productId, "?$select=mon_price_per_unit");
                 Form.getAttribute("cr62c_mon_price_per_unit").setValue(productRecord.defaultpriceperunit);
             }
 
@@ -190,15 +197,15 @@ async function autofillPricePerUnit(executionContext) {
 }
 
 async function calculateChildQuantity(executionContext) {
-    const Form = executionContext.getFormContext();
+    let Form = executionContext.getFormContext();
 
-    const inventoryId = Form.getAttribute("cr62c_fk_inventory").getValue();
+    let inventoryId = Form.getAttribute("cr62c_fk_inventory").getValue();
     if (!inventoryId) {
         console.error("Inventory ID is null, calculation cannot proceed.");
         return;
     }
 
-    const fetchXml = `
+    let fetchXml = `
     <fetch version="1.0" mapping="logical" distinct="true">
         <entity name="cr62c_inventory_product">
             <attribute name="cr62c_name"/>
@@ -216,7 +223,7 @@ async function calculateChildQuantity(executionContext) {
     </fetch>`;
 
     try {
-        const results = await Xrm.WebApi.retrieveMultipleRecords("cr62c_inventory_product", `?fetchXml=${encodeURIComponent(fetchXml)}`);
+        let results = await Xrm.WebApi.retrieveMultipleRecords("cr62c_inventory_product", `?fetchXml=${encodeURIComponent(fetchXml)}`);
 
         let totalQuantity = 0;
 
