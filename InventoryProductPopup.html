@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Inventory Operation</title>
+  <style>
+    .popup-container {
+      width: 400px;
+      height: 200px;
+      padding: 20px;
+    }
+
+    .popup-buttons {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+<div class="popup-container">
+  <h2>Inventory Operation</h2>
+  <label for="operationType">Operation Type:</label>
+  <select id="operationType">
+    <option value="In">In</option>
+    <option value="Out">Out</option>
+  </select>
+
+  <label for="quantity">Quantity:</label>
+  <input type="number" id="quantity" min="1" />
+
+  <div class="popup-buttons">
+    <button onclick="onOkClick()">OK</button>
+    <button onclick="onCancelClick()">Cancel</button>
+  </div>
+</div>
+
+<script>
+  function onOkClick() {
+    const quantity = document.getElementById("quantity").value;
+    const operationType = document.getElementById("operationType").value;
+    if (!quantity || quantity <= 0) {
+      alert("Please enter a valid quantity.");
+      return;
+    }
+    parent.Xrm.Page.getAttribute("popupData").setValue({ quantity: parseInt(quantity), operationType: operationType });
+    parent.Xrm.Navigation.closeDialog();
+  }
+
+  function onCancelClick() {
+    parent.Xrm.Navigation.closeDialog();
+  }
+</script>
+</body>
+</html>

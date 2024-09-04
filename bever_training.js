@@ -186,60 +186,17 @@ function autofillAndHideFields(executionContext) {
     Form.getControl("OwnerId").setVisible(false);
 }
 
-
-//----------------------------- unused functions ----------------------------------
-//------------------------------------ || -----------------------------------------
-//------------------------------------ \/ -----------------------------------------
-
-
-async function setPricePerUnit(executionContext) {
-    let Form = executionContext.getFormContext();
-    let productLookup = Form.getAttribute("cr62c_Product")?.getValue();
-    let priceListLookup = Form.getAttribute("cr62c_fk_price_list")?.getValue();
-
-    if (productLookup == null || priceListLookup == null) {
-        return;
-    }
-
-    let productId = productLookup[0].id;
-    let priceListId = priceListLookup[0].id;
-
-    try {
-        let priceListItemRecords = await Xrm.WebApi.retrieveMultipleRecords("cr62c_price_list_items",
-            `?$filter=_pricelistid_value eq ${priceListId} and _productid_value eq ${productId}`);
-
-        let pricePerUnit = null;
-
-        if (priceListItemRecords.entities.length > 0) {
-            pricePerUnit = priceListItemRecords.entities[0].priceperunit;
-        } else {
-            let productRecord = await Xrm.WebApi.retrieveRecord("product", productId, "?$select=defaultpriceperunit");
-            pricePerUnit = productRecord.defaultpriceperunit;
-        }
-
-        if (pricePerUnit !== null) {
-            Form.getAttribute("mon_price_per_unit").setValue(pricePerUnit);
-            Form.getControl("mon_price_per_unit").setDisabled(true);
-        }
-
-    } catch (error) {
-        console.error("Error retrieving Price Per Unit: ", error);
-        Xrm.Navigation.openAlertDialog({text: "An error occurred while retrieving Price Per Unit."});
-    }
-}
-
-
 async function autofillPricePerUnit(executionContext) {
     let Form = executionContext.getFormContext();
     let priceList = Form.getAttribute("cr62c_fk_price_list").getValue();
-    let product = Form.getAttribute("cr62c_fk_product").getValue();
+    let product = Form.getAttribute("cr62c_Product").getValue();
 
     if (priceList && product) {
         let priceListId = priceList[0].id;
         let productId = product[0].id;
 
         try {
-            let query = `?$filter=_cr62c_fk_product_value eq ${productId} and _cr62c_fk_price_list_value eq ${priceListId} &$select=mon_price_per_unit`;
+            let query = `?$filter=_cr62c_Product_value eq ${productId} and _cr62c_fk_price_list_value eq ${priceListId} &$select=mon_price_per_unit`;
             let priceListItemRecords = await Xrm.WebApi.retrieveMultipleRecords("cr62c_price_list_items", query);
 
             if (priceListItemRecords.entities.length > 0) {
@@ -256,6 +213,124 @@ async function autofillPricePerUnit(executionContext) {
         }
     }
 }
+
+async function setPricePerUnitFromPriceListOrProduct(executionContext) {
+    const formContext = executionContext.getFormContext();
+
+    const productLookup = formContext.getAttribute("cr62c_fk_product").getValue();
+    const priceListLookup = formContext.getAttribute("cr62c_fk_price_list").getValue();
+
+    if (productLookup == null) {
+        formContext.getAttribute("cr62c_mon_price_per_unit").setValue(null);
+        return;
+    }
+
+    const productId = productLookup[0].id.replace("{", "").replace("}", "");
+    let pricePerUnit = null;
+
+    if (priceListLookup != null) {
+        const priceListId = priceListLookup[0].id.replace("{", "").replace("}", "");
+
+        try {
+            const priceListItemRecords = await Xrm.WebApi.retrieveMultipleRecords("pricelistitem",
+                `?$filter=_cr62c_fk_product_value eq ${productId} and _cr62c_fk_price_list_value eq ${priceListId}&$select=priceperunit`);
+
+            if (priceListItemRecords.entities.length > 0) {
+                pricePerUnit = priceListItemRecords.entities[0].priceperunit;
+            }
+        } catch (error) {
+            console.error("Error retrieving price from price list: ", error);
+        }
+    }
+
+    if (pricePerUnit === null) {
+        try {
+            const productRecord = await Xrm.WebApi.retrieveRecord("product", productId, "?$select=defaultpriceperunit");
+            pricePerUnit = productRecord.defaultpriceperunit;
+        } catch (error) {
+            console.error("Error retrieving default price from product: ", error);
+        }
+    }
+
+    if (pricePerUnit !== null) {
+        formContext.getAttribute("cr62c_mon_price_per_unit").setValue(pricePerUnit);
+        formContext.getControl("cr62c_mon_price_per_unit").setDisabled(true);
+    }
+}
+
+async function initializePriceList(executionContext) {
+    const formContext = executionContext.getFormContext();
+    const priceListId = formContext.data.entity.getId();
+
+    try {
+        const priceListItems = await Xrm.WebApi.retrieveMultipleRecords("pricelistitem", `?$filter=_pricelevelid_value eq ${priceListId}`);
+        for (const item of priceListItems.entities) {
+            await Xrm.WebApi.deleteRecord("pricelistitem", item.pricelistitemid);
+        }
+
+        const products = await Xrm.WebApi.retrieveMultipleRecords("product", "?$select=productid,name");
+
+        for (const product of products.entities) {
+            const priceListRecord = {
+                "pricelevelid@odata.bind": `/pricelevels(${priceListId})`,
+                "productid@odata.bind": `/products(${product.productid})`,
+                "uomid@odata.bind": "/uoms(00000000-0000-0000-0000-000000000000)",
+                "amount": 1, // Price Per Unit
+                "productdescription": product.name, // Name from the product
+                "transactioncurrencyid@odata.bind": `/transactioncurrencies(${formContext.getAttribute("transactioncurrencyid").getValue()[0].id})`
+            };
+            await Xrm.WebApi.createRecord("pricelistitem", priceListRecord);
+        }
+
+        Xrm.Navigation.openAlertDialog({ text: "Price List initialization completed successfully!" });
+    } catch (error) {
+        console.error("Error initializing Price List: ", error);
+        Xrm.Navigation.openAlertDialog({ text: "Error occurred during Price List initialization." });
+    }
+}
+
+
+async function checkProductInInventory(executionContext) {
+    const formContext = executionContext.getFormContext();
+    const product = formContext.getAttribute("cr62c_product").getValue();
+
+    if (product == null) {
+        return;
+    }
+
+    const productId = product[0].id;
+    const inventoryId = formContext.getAttribute("cr62c_fk_inventory").getValue()[0].id;
+
+    try {
+        const fetchXml = `
+        <fetch top="1">
+            <entity name="cr62c_inventory_product">
+                <filter>
+                    <condition attribute="cr62c_fk_product" operator="eq" value="${productId}" />
+                    <condition attribute="cr62c_fk_inventory" operator="eq" value="${inventoryId}" />
+                </filter>
+            </entity>
+        </fetch>`;
+
+        const results = await Xrm.WebApi.retrieveMultipleRecords("cr62c_inventory_product", `?fetchXml=${encodeURIComponent(fetchXml)}`);
+
+        if (results.entities.length > 0) {
+            formContext.getControl("cr62c_product").setNotification("Product is already added to this inventory.", "product_notification");
+        } else {
+            formContext.getControl("cr62c_product").clearNotification("product_notification");
+        }
+    } catch (error) {
+        console.error("Error checking product in inventory:", error);
+    }
+}
+
+
+
+//----------------------------- unused functions ----------------------------------
+//------------------------------------ || -----------------------------------------
+//------------------------------------ \/ -----------------------------------------
+
+
 
 async function calculateChildQuantity(executionContext) {
     let Form = executionContext.getFormContext();
@@ -297,70 +372,5 @@ async function calculateChildQuantity(executionContext) {
         Form.getAttribute("total_quantity_field").setValue(totalQuantity);
     } catch (error) {
         console.error("Error executing FetchXML query: ", error);
-    }
-}
-
-
-
-
-
-
-async function initializePriceList(formContext) {
-    let priceListLookup = formContext.getAttribute("cr62c_fk_price_list").getValue();
-
-    if (!priceListLookup) {
-        Xrm.Navigation.openAlertDialog({ text: "Please select a Price List." });
-        return;
-    }
-
-    let priceListId = priceListLookup[0].id;
-
-    try {
-        await deletePriceListItems(priceListId);
-
-        await createPriceListItems(priceListId);
-
-        Xrm.Navigation.openAlertDialog({ text: "Price List has been initialized successfully." });
-
-    } catch (error) {
-        console.error("Error initializing Price List:", error);
-        Xrm.Navigation.openAlertDialog({ text: "An error occurred while initializing the Price List." });
-    }
-}
-
-async function deletePriceListItems(priceListId) {
-    let fetchXml = `
-    <fetch>
-        <entity name="pricelistitem">
-            <attribute name="pricelistitemid"/>
-            <filter>
-                <condition attribute="cr62c_fk_price_list" operator="eq" value="${priceListId}" />
-            </filter>
-        </entity>
-    </fetch>`;
-
-    let priceListItems = await Xrm.WebApi.retrieveMultipleRecords("pricelistitem", `?fetchXml=${encodeURIComponent(fetchXml)}`);
-
-    for (let item of priceListItems.entities) {
-        await Xrm.WebApi.deleteRecord("pricelistitem", item.pricelistitemid);
-    }
-}
-
-async function createPriceListItems(priceListId) {
-    let priceList = await Xrm.WebApi.retrieveRecord("pricelevel", priceListId, "?$select=transactioncurrencyid");
-    let currencyId = priceList.transactioncurrencyid;
-
-    let products = await Xrm.WebApi.retrieveMultipleRecords("product", "?$select=productid,name");
-
-    for (let product of products.entities) {
-        let priceListItem = {
-            "cr62c_fk_product@odata.bind": `/products(${product.productid})`,
-            "cr62c_fk_price_list@odata.bind": `/pricelevels(${priceListId})`,
-            "transactioncurrencyid@odata.bind": `/transactioncurrencies(${currencyId.transactioncurrencyid})`,
-            "priceperunit": 1,
-            "name": product.name
-        };
-
-        await Xrm.WebApi.createRecord("pricelistitem", priceListItem);
     }
 }
