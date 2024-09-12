@@ -58,7 +58,7 @@ async function processInventoryOperation(executionContext) {
                     alert("Insufficient quantity in inventory.");
                 }
             } else {
-                alert("Product does not exist in inventory.");
+                alert("InventoryProductPopup does not exist in inventory.");
             }
         }
     } catch (error) {
