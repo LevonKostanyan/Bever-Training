@@ -1,35 +1,3 @@
-
-
-
-
-
-async function setCurrencyFromPriceList(executionContext) {
-    let Form = executionContext.getFormContext();
-    let priceListLookup = Form.getAttribute("cr62c_price_list").getValue();
-
-    if (priceListLookup == null) {
-        Form.getControl("TransactionCurrencyId").setDisabled(true);
-        return;
-    }
-
-    let priceListId = priceListLookup[0].id;
-
-    try {
-        let priceListRecord = await Xrm.WebApi.retrieveMultipleRecords("cr62c_price_list",
-            `?$select=TransactionCurrencyId&$filter=cr62c_fk_price_list eq ${priceListId}&$expand=TransactionCurrencyId($select=TransactionCurrencyId)`);
-
-        if (priceListRecord.entities.length > 0) {
-            let currencyId = priceListRecord.entities[0].transactioncurrencyid.transactioncurrencyid;
-
-            Form.getAttribute("TransactionCurrencyId").setValue([{id: currencyId, entityType: "transactioncurrency"}]);
-            Form.getControl("TransactionCurrencyId").setDisabled(true);
-        }
-    } catch (error) {
-        console.error("Error retrieving currency from Price List: ", error);
-        Xrm.Navigation.openAlertDialog({text: "An error occurred while retrieving currency from Price List."});
-    }
-}
-
 async function CalculateTotalPriceInInventory(formContext) {
     let recordId = formContext.data.entity.getId();
 
@@ -99,33 +67,6 @@ function autofillAndHideFields(executionContext) {
     Form.getControl("OwnerId").setVisible(false);
 }
 
-async function autofillPricePerUnit(executionContext) {
-    let Form = executionContext.getFormContext();
-    let priceList = Form.getAttribute("cr62c_price_list").getValue();
-    let product = Form.getAttribute("cr62c_Product").getValue();
-
-    if (priceList && product) {
-        let priceListId = priceList[0].id;
-        let productId = product[0].id;
-
-        try {
-            let query = `?$filter=_cr62c_Product_value eq ${productId} and _cr62c_fk_price_list_value eq ${priceListId} &$select=mon_price_per_unit`;
-            let priceListItemRecords = await Xrm.WebApi.retrieveMultipleRecords("cr62c_price_list_items", query);
-
-            if (priceListItemRecords.entities.length > 0) {
-                let pricePerUnit = priceListItemRecords.entities[0].priceperunit;
-                Form.getAttribute("cr62c_mon_price_per_unit").setValue(pricePerUnit);
-            } else {
-                let productRecord = await Xrm.WebApi.retrieveRecord("product", productId, "?$select=mon_price_per_unit");
-                Form.getAttribute("cr62c_mon_price_per_unit").setValue(productRecord.defaultpriceperunit);
-            }
-
-            Form.getControl("cr62c_mon_price_per_unit").setDisabled(true);
-        } catch (error) {
-            console.error("Error retrieving Price Per Unit:", error);
-        }
-    }
-}
 
 async function setPricePerUnitFromPriceListOrProduct(executionContext) {
     const formContext = executionContext.getFormContext();

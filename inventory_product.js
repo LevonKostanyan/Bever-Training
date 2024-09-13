@@ -61,3 +61,73 @@ function enableAllFields(executionContext) {
         }
     });
 }
+
+async function setCurrencyFromPriceList(executionContext) {
+    let Form = executionContext.getFormContext();
+    let priceListLookup = Form.getAttribute("cr62c_fk_price_list").getValue();
+
+    if (priceListLookup == null) {
+        Form.getControl("transactioncurrencyid").setDisabled(true);
+        return;
+    }
+
+    let priceListId = priceListLookup[0].id;
+
+    try {
+        let priceListRecord = await Xrm.WebApi.retrieveMultipleRecords("cr62c_fk_price_list",
+            `?$select=transactioncurrencyid&$filter=cr62c_fk_price_list eq ${priceListId}&$expand=transactioncurrencyid($select=transactioncurrencyid)`);
+
+        if (priceListRecord.entities.length > 0) {
+            let currencyId = priceListRecord.entities[0].transactioncurrencyid.transactioncurrencyid;
+
+            Form.getAttribute("transactioncurrencyid").setValue([{id: currencyId, entityType: "transactioncurrency"}]);
+            Form.getControl("transactioncurrencyid").setDisabled(true);
+        }
+    } catch (error) {
+        console.error("Error retrieving currency from Price List: ", error);
+        Xrm.Navigation.openAlertDialog({text: "An error occurred while retrieving currency from Price List."});
+    }
+}
+async function setPricePerUnitBasedOnPriceList(executionContext) {
+    let Form = executionContext.getFormContext();
+
+    let priceList = Form.getAttribute("cr62c_fk_price_list").getValue();
+    let product = Form.getAttribute("cr62c_product").getValue();
+
+    Form.getControl("cr62c_mon_price_per_unit").setDisabled(true);
+
+    if (priceList && product) {
+        let priceListId = priceList[0].id;
+        let productId = product[0].id;
+
+        try {
+            let query = `?$filter=_cr62c_product_value eq ${productId} and _cr62c_fk_price_list_value eq ${priceListId} &$select=cr62c_mon_price_per_unit`;
+            let priceListItemRecords = await Xrm.WebApi.retrieveMultipleRecords("cr62c_price_list_item", query);
+            if (priceListItemRecords.entities.length > 0) {
+                let pricePerUnit = priceListItemRecords.entities[0].cr62c_mon_price_per_unit;
+                Form.getAttribute("cr62c_mon_price_per_unit").setValue(pricePerUnit);
+            } else {
+                let productRecord = await Xrm.WebApi.retrieveRecord("cr62c_product", productId, "?$select=cr62c_mon_price_per_unit");
+                let defaultPricePerUnit = productRecord.cr62c_mon_price_per_unit;
+
+                Form.getAttribute("cr62c_mon_price_per_unit").setValue(defaultPricePerUnit);
+            }
+        } catch (error) {
+            console.error("Error retrieving Price Per Unit from Price List:", error);
+            Xrm.Navigation.openAlertDialog({ text: "An error occurred while retrieving Price Per Unit." });
+        }
+    } else if (product) {
+        try {
+            let productId = product[0].id;
+            let productRecord = await Xrm.WebApi.retrieveRecord("cr62c_product", productId, "?$select=cr62c_mon_price_per_unit");
+
+            let defaultPricePerUnit = productRecord.cr62c_mon_price_per_unit;
+            Form.getAttribute("cr62c_mon_price_per_unit").setValue(defaultPricePerUnit);
+
+        } catch (error) {
+            console.error("Error retrieving default price from Product:", error);
+        }
+    } else {
+        Form.getAttribute("cr62c_mon_price_per_unit").setValue(null);
+    }
+}
