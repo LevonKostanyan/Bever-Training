@@ -97,17 +97,19 @@ async function setPricePerUnitBasedOnPriceList(executionContext) {
     Form.getControl("cr62c_mon_price_per_unit").setDisabled(true);
 
     if (priceList && product) {
+        console.log(priceList, product);
+
         let priceListId = priceList[0].id;
         let productId = product[0].id;
 
         try {
             let query = `?$filter=_cr62c_product_value eq ${productId} and _cr62c_fk_price_list_value eq ${priceListId} &$select=cr62c_mon_price_per_unit`;
-            let priceListItemRecords = await Xrm.WebApi.retrieveMultipleRecords("cr62c_price_list_item", query);
+            let priceListItemRecords = await Xrm.WebApi.retrieveMultipleRecords("cr62c_price_list_items", query);
             if (priceListItemRecords.entities.length > 0) {
                 let pricePerUnit = priceListItemRecords.entities[0].cr62c_mon_price_per_unit;
                 Form.getAttribute("cr62c_mon_price_per_unit").setValue(pricePerUnit);
             } else {
-                let productRecord = await Xrm.WebApi.retrieveRecord("cr62c_product", productId, "?$select=cr62c_mon_price_per_unit");
+                let productRecord = await Xrm.WebApi.retrieveRecord("product", productId, "?$select=cr62c_mon_price_per_unit");
                 let defaultPricePerUnit = productRecord.cr62c_mon_price_per_unit;
 
                 Form.getAttribute("cr62c_mon_price_per_unit").setValue(defaultPricePerUnit);
@@ -119,7 +121,7 @@ async function setPricePerUnitBasedOnPriceList(executionContext) {
     } else if (product) {
         try {
             let productId = product[0].id;
-            let productRecord = await Xrm.WebApi.retrieveRecord("cr62c_product", productId, "?$select=cr62c_mon_price_per_unit");
+            let productRecord = await Xrm.WebApi.retrieveRecord("product", productId, "?$select=cr62c_mon_price_per_unit");
 
             let defaultPricePerUnit = productRecord.cr62c_mon_price_per_unit;
             Form.getAttribute("cr62c_mon_price_per_unit").setValue(defaultPricePerUnit);
