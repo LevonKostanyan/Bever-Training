@@ -67,7 +67,6 @@ function autofillAndHideFields(executionContext) {
     Form.getControl("OwnerId").setVisible(false);
 }
 
-
 async function setPricePerUnitFromPriceListOrProduct(executionContext) {
     const formContext = executionContext.getFormContext();
 
@@ -112,8 +111,6 @@ async function setPricePerUnitFromPriceListOrProduct(executionContext) {
     }
 }
 
-
-
 async function checkProductInInventory(executionContext) {
     const formContext = executionContext.getFormContext();
     const product = formContext.getAttribute("cr62c_product").getValue();
@@ -147,14 +144,6 @@ async function checkProductInInventory(executionContext) {
         console.error("Error checking product in inventory:", error);
     }
 }
-
-
-
-//----------------------------- unused functions ----------------------------------
-//------------------------------------ || -----------------------------------------
-//------------------------------------ \/ -----------------------------------------
-
-
 
 async function calculateChildQuantity(executionContext) {
     let Form = executionContext.getFormContext();
