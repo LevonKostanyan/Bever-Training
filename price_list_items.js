@@ -5,7 +5,7 @@ async function autofillCurrencyFromPriceList(executionContext) {
     if (priceList) {
         let priceListId = priceList[0].id;
 
-        let priceListRecord = await Xrm.WebApi.retrieveRecord("cr62c_fk_price_list", priceListId, "?$select=transactioncurrencyid");
+        let priceListRecord = await Xrm.WebApi.retrieveRecord("cr62c_price_list", priceListId, "?$select=transactioncurrencyid");
 
         if (priceListRecord.transactioncurrencyid) {
             let currencyId = priceListRecord.transactioncurrencyid.transactioncurrencyid;

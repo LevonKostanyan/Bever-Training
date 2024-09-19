@@ -16,6 +16,8 @@ function calculateTotalAmount(executionContext) {
     let quantityField = formContext.getAttribute("cr62c_dec_quantity");
     let pricePerUnitField = formContext.getAttribute("cr62c_mon_price_per_unit");
 
+    formContext.getControl("cr62c_mon_total_amount").setDisabled(true);
+
     if (quantityField != null && pricePerUnitField != null) {
         let quantity = quantityField.getValue();
         let pricePerUnit = pricePerUnitField.getValue();
@@ -36,9 +38,9 @@ function toggleFieldsBasedOnFormType(executionContext) {
     let formContext = executionContext.getFormContext();
     let formType = formContext.ui.getFormType();
 
-    if (formType === 1) { // Create mode
+    if (formType === 1) {
         enableAllFields(formContext);
-    } else if (formType === 2) { // Update mode
+    } else if (formType === 2) {
         disableAllFields(formContext);
     }
 }

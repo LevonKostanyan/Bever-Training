@@ -15,22 +15,25 @@ async function initializePriceList(formContext) {
             </filter>
           </entity>
         </fetch>`;
+
     fetchXml = "?fetchXml=" + encodeURIComponent(fetchXml);
 
     let priceListItems = await Xrm.WebApi.retrieveMultipleRecords("cr62c_price_list_items", fetchXml);
+
     for (let item of priceListItems.entities) {
         await Xrm.WebApi.deleteRecord("cr62c_price_list_items", item.cr62c_price_list_itemsid);
     }
 
     let products = await Xrm.WebApi.retrieveMultipleRecords("product", "?$select=productid,name");
+    let currencyId = formContext.getAttribute("transactioncurrencyid").getValue()[0].id;
+
     for (let product of products.entities) {
         let priceListRecord = {
-            "cr62c_fk_price_list@odata.bind": `/cr62c_price_lists(${priceListId})`,
-            "cr62c_fk_product@odata.bind": `/products(${product.productid})`,
-            "uomid@odata.bind": "/uoms(19aa3f26-6f0b-4076-bc8f-9c773148ffbf)",
+            "cr62c_fk_price_list@odata.bind": priceListId,
+            "cr62c_name": product.name,
             "cr62c_mon_price_per_unit": 1,
-            "cr62c_product_description": product.name,
-            "transactioncurrencyid@odata.bind": `/transactioncurrencies(${formContext.getAttribute("transactioncurrencyid").getValue()[0].id})`
+            "transactioncurrencyid@odata.bind": currencyId,
+            "cr62c_fk_product@odata.bind": product.productid,
         };
 
         await Xrm.WebApi.createRecord("cr62c_price_list_items", priceListRecord);
