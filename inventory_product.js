@@ -119,3 +119,32 @@ async function setPricePerUnitBasedOnPriceList(executionContext) {
         formContext.getAttribute("cr62c_mon_price_per_unit").setValue(null);
     }
 }
+
+async function checkProductAssociation(executionContext) {
+    let formContext = executionContext.getFormContext();
+    let productField = formContext.getAttribute("cr62c_product").getValue();
+
+    if (productField != null) {
+        let productId = productField[0].id;
+
+        let fetchXml = `
+        <fetch top="1">
+            <entity name="cr62c_inventory_product">
+                <attribute name="cr62c_product"/>
+                <filter>
+                    <condition attribute="cr62c_product" operator="eq" value="${productId}" />
+                </filter>
+            </entity>
+        </fetch>`;
+
+        fetchXml = "?fetchXml=" + encodeURIComponent(fetchXml);
+
+        let results = await Xrm.WebApi.retrieveMultipleRecords("cr62c_inventory_product", fetchXml);
+
+        if (results.entities.length > 0) {
+            formContext.getControl("cr62c_product").setNotification("Product is already added to the inventory.", "product_exists");
+        } else {
+            formContext.getControl("cr62c_product").clearNotification("product_exists");
+        }
+    }
+}
